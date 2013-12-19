@@ -2,19 +2,21 @@
   "name": "epilogue",
   "description": "Create REST resources and controllers with Sequelize and Express",
   "version": "0.2.1",
-  "author": "David Chester <dchester@shutterstock.com>",
+  "author": {
+    "name": "David Chester",
+    "email": "dchester@shutterstock.com"
+  },
   "main": "lib/",
   "scripts": {
     "test": "node_modules/nodeunit/bin/nodeunit tests"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/dchester/epilogue.git"
+    "url": "https://github.com/vitage/epilogue.git"
   },
   "devDependencies": {
     "nodeunit": "*",
     "sqlite3": "*",
-    "nodeunit": "*",
     "request": "*"
   },
   "dependencies": {
@@ -22,5 +24,12 @@
     "sequelize": "*",
     "express": ">= 3.0.0",
     "underscore": "*"
-  }
+  },
+  "readme": "# Epilogue\n\nCreate flexible REST endpoints and controllers from Sequelize models in your Express app in Node.\n\n### Start with a model\n\nDefine your models with [Sequelize](http://www.sequelizejs.com/) on top of MySQL, Postgres, or SQLite.  Describe tables and columns and their attributes, model entity relationships, etc.\n\n```javascript\nvar User = sequelize.define(...);\n```\n\n### Create a resource\n\nLoad up `epilogue` and provide a reference to your Express app.  Then create resources, specifying a model and endpoints.\n\n```javascript\nvar rest = require('epilogue');\nrest.initialize({ app: app });\n\nvar users = rest.resource({\n    model: User,\n    endpoints: ['/users', '/users/:id']\n});\n```\n\n### Controllers and endpoints\n\nOn the server we now have the following controllers and endpoints:\n\n| Controller | Endpoint | Description |\n|------------|----------|-------------|\n| users.create | POST /users | Create a user |\n| users.list | GET /users  | Get a listing of users |\n| users.read | GET /users/:id | Get details about a user |\n| users.update | POST /users/:id | Update a user|\n| users.delete | DELETE /users/:id | Delete a user |\n\n### Customize behavior\n\nOf course it's likely that we'll want more flexibility.  Our `users` resource has properties for each of the controller actions.  Controller actions in turn have hooks for setting and overriding behavior at each step of the request.  We have these milestones to work with: `start`, `auth`, `fetch`, `data`, `write`, `send`, and `complete`.\n\n```javascript\n// disallow deletes on users\nusers.delete.auth(function(req, res, context) {\n\tres.json(403, { error: \"can't delete a user\" });\n\tcontext.stop();\n})\n```\n\nBy default, `fetch`, `write`, and `send` milestones are defined, with the others left open.  We can set behavior for milestones directly as above, or we can add functionality before and after milestones too:\n\n```javascript\n// check the cache first\nusers.list.fetch.before(function(req, res, context) {\n\n\tvar instance = cache.get(context.criteria);\n\n\tif (instance) {\n\t\t// keep a reference to the instance and skip the fetch\n\t\tcontext.instance = instance;\n\t\tcontext.skip();\n\t} else {\n\t\t// cache miss; we continue on\n\t\tcontext.continue();\n\t}\n})\n```\n\n### Pagination\n\nList routes support pagination via `offset` and `count` query parameters.  Find metadata about pagination and number of results in the `Content-Range` response header.\n\n```bash\n# get the third page of results\n$ curl http://localhost/users?offset=200&count=100\nHTTP/1.1 200 OK\nContent-Type: application/json\nContent-Range: items 200-299/3230\n\n[\n  { name: \"James Conrad\" },\n  ...\n]\n```\n\n## Epilogue API\n\n#### initialize()\n \nSet defaults and give epilouge a reference to your express app.  Send the following parameters:\n\n> ###### app\n>\n> A reference to the Express application\n>\n> ###### base\n>\n> Prefix to prepend to resource endpoints\n\n#### resource()\n\nCreate a resource and CRUD actions given a Sequelize model and endpoints.  Accepts these parameters:\n\n> ###### model\n> \n> Reference to a Sequelize model\n> \n> ###### endpoints\n>\n> Specify endpoints as an array with two sinatra-style URL paths in plural and singular form (e.g., `['/users', '/users/:id']`).\n> \n> ###### actions\n>\n> Create only the specified list of actions for the resource.  Options include `create`, `list`, `read`, `update`, and `delete`.  Defaults to all.\n\n### Milestones\n\nMilestones provide opportunities to run custom application code at various important steps throughout the duration of the request.\n\nResources have properties for each controller action: `create`, `list`, `read`, `update`, and `delete`.  Also find a meta property `all` as a convenience for hooking into milestones across all controllers.  Each of those properties in turn has methods for setting custom behavior.\n\nFor each milestone on a given controller we accept a function to specify custom behavior.  Functions can expect three parameters: a request, a response, and a context object.\n\n#### start(f)\n\nRun at the beginning of the request.  Defaults to passthrough.\n\n#### auth(f)\n\nAuthorize the request.  Defaults to passthrough.\n\n#### fetch(f)\n\nFetch data from the database for non-create actions according to `context.criteria`, writing to `context.instance`.\n\n#### data(f)\n\nTransform the data from the database if needed.  Defaults to passthrough.\n\n#### write(f)\n\nWrite to the database for actions that write, reading from `context.attributes`.\n\n#### send(f)\n\nSend the HTTP response, headers along with the data in `context.instance`.\n\n#### complete(f)\n\nRun the specified function when the request is complete, regardless of the status of the response.\n\n### Milestones & Context\n\nMilestone methods take functions which can expect as paramaters a request, a response, and a context. Context objects contain key properties about the state of the resource at the given request milestone, as well as methods to give back control.\n\n##### context.instance\n\nInstance of a dataset fetched via the supplied model.  May be undefined for early milestones prior to the fetching of the data.\n\n##### context.attributes\n\nAttribues supplied by the request, usually in anticipation of creating or updating an instance.\n\n##### context.criteria\n\nCriteria for fetching, usually supplied by request parameters.\n\n##### context.continue()\n\nContinue with the request, on through the rest of the milestones.\n\n##### context.stop()\n\nIndicate that this should be the last milestone to be processed.\n\n##### context.skip()\n\nSkip to the next milestone, usually called from `before`.\n\n## License\n\nCopyright (C) 2012 David Chester\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n",
+  "readmeFilename": "README.md",
+  "bugs": {
+    "url": "https://github.com/dchester/epilogue/issues"
+  },
+  "_id": "epilogue@0.2.1",
+  "_from": "epilogue@"
 }

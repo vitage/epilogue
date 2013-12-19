@@ -58,28 +58,6 @@ module.exports = {
 		});
 	},
 
-	multipleStarts: function(test) {
-
-		var users = switchboard.users;
-
-		var startCount;
-
-		users.read.start(function(req, res, context) {
-			startCount = 1;
-			return context.continue();
-		});
-
-		users.read.start(function(req, res, context) {
-			startCount++;
-			return context.continue();
-		});
-
-		request.get({ url: "http://localhost:48281/users/1" }, function(err, response, body) {
-			test.equal(startCount, 2);
-			test.done();
-		});
-	},
-
 	setUp: function(callback) {
 
 		var app = express();
@@ -102,8 +80,6 @@ module.exports = {
 			return context.skip();
 		});
 
-		switchboard.users = users;
-
 		switchboard.server = http.createServer(app);
 		switchboard.server.listen( 48281, null, null, function() { setTimeout(callback, 1000) });
 	},
@@ -112,5 +88,4 @@ module.exports = {
 		truncate(callback);
 	}
 };
-
 
